@@ -1,5 +1,6 @@
 using IncidenciasBicicletas.Web.Data;
 using IncidenciasBicicletas.Web.Models;
+using IncidenciasBicicletas.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,13 +12,14 @@ namespace IncidenciasBicicletas.Web.Controllers
     public class IncidenciasController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IPieSocketPublisher _publisher;
 
-        public IncidenciasController(ApplicationDbContext context)
+        public IncidenciasController(ApplicationDbContext context, IPieSocketPublisher publisher)
         {
             _context = context;
+            _publisher = publisher;
         }
 
-        // GET: /Operaciones/Incidencias
         [HttpGet("")]
         [HttpGet("Index")]
         public async Task<IActionResult> Index()
@@ -31,7 +33,6 @@ namespace IncidenciasBicicletas.Web.Controllers
             return View(abiertas);
         }
 
-        // POST: /Operaciones/Incidencias/Cerrar/5
         [HttpPost("Cerrar/{id:int}")]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Supervisor")]
@@ -45,8 +46,20 @@ namespace IncidenciasBicicletas.Web.Controllers
             incidencia.Estado = EstadoIncidencia.Cerrada;
             await _context.SaveChangesAsync();
 
+            await _publisher.PublicarIncidenciaActualizadaAsync(incidencia.Id, incidencia.Estado.ToString());
+
             TempData["Exito"] = $"Incidencia #{incidencia.Id} cerrada.";
             return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet("Estado/{id:int}")]
+        public async Task<IActionResult> Estado(int id)
+        {
+            var incidencia = await _context.Incidencias.FindAsync(id);
+            if (incidencia == null)
+                return NotFound();
+
+            return Json(new { id = incidencia.Id, estado = incidencia.Estado.ToString() });
         }
     }
 }
