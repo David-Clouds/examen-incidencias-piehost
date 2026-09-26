@@ -4,7 +4,7 @@
     ViewData["Title"] = "Incidencias";
 }
 
-<h1>Incidencias abiertas</h1>
+<h1>Incidencias abiertas con consulta rápida</h1>
 
 @if (TempData["Exito"] != null)
 {
@@ -30,6 +30,7 @@ else
                 }
             </tr>
         </thead>
+
         <tbody>
             @foreach (var i in Model)
             {
@@ -41,12 +42,20 @@ else
                             @i.Prioridad
                         </span>
                     </td>
+
                     <td>@i.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</td>
+
                     @if (User.IsInRole("Supervisor"))
                     {
                         <td>
-                            <form asp-action="Cerrar" asp-route-id="@i.Id" method="post" class="d-inline">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Cerrar</button>
+                            <form asp-action="Cerrar"
+                                  asp-route-id="@i.Id"
+                                  method="post"
+                                  class="d-inline">
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-danger">
+                                    Cerrar
+                                </button>
                             </form>
                         </td>
                     }
