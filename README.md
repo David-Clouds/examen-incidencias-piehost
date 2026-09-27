@@ -63,3 +63,30 @@ La clave de administración de Algolia (`WriteApiKey`) nunca se expone en el nav
 ## Estrategia de ramas y fusiones
 
 Las tres ramas nacieron del mismo commit inicial (proyecto base con login, datos de prueba y `/Operaciones/Incidencias`):
+
+main (commit inicial)
+├── feature/busqueda-algolia (PR #1, sin conflicto — primera en fusionar)
+├── feature/cache-redis (PR #2 — conflicto 1 al traer main)
+└── feature/websocket-piehost (PR #3 — conflicto 2 al traer main)
+
+
+
+
+
+Orden de fusión: **A → B → C**, incorporando `main` a cada rama mediante `merge` (no rebase, no squash) antes de fusionar su PR.
+
+### Resolución del conflicto 1 (rama B, PR #2)
+Ambas ramas modificaban la misma línea de título y el listado de `Incidencias`. Se conservaron **ambas funciones**: la búsqueda con Algolia (consulta directa) y el caché con Redis (60s) para el listado general sin término de búsqueda. Título final: "Incidencias abiertas con búsqueda y consulta rápida".
+
+### Resolución del conflicto 2 (rama C, PR #3)
+Se incorporó `main` (ya con Algolia + Redis) a la rama de WebSocket. Se conservaron **las tres funciones**: búsqueda, caché y la conexión en tiempo real vía PieSocket, además del endpoint `/Estado/{id}` para reconciliar el estado al reconectar. Título final: "Incidencias abiertas en tiempo real, con búsqueda y consulta rápida".
+
+Historial completo: `git log --graph --oneline --all`.
+
+## Pruebas realizadas
+
+- ✅ Búsqueda por estación/descripción vía Algolia; una incidencia cerrada no aparece aunque esté indexada
+- ✅ Caché Redis: `CACHE MISS` en la primera consulta, `CACHE HIT` en las siguientes, invalidación (`CACHE INVALIDADA`) al cerrar una incidencia
+- ✅ Al cerrar una incidencia: se persiste en base → se invalida la caché → se publica el evento en PieSocket, en ese orden
+- ✅ Dos sesiones abiertas simultáneamente: al cerrar una incidencia en una, desaparece en la otra sin recargar
+- ✅ Reconexión del WebSocket: al recuperar la conexión, se consulta el estado vigente de cada fila visible
