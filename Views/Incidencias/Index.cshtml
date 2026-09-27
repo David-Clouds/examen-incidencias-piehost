@@ -4,7 +4,22 @@
     ViewData["Title"] = "Incidencias";
 }
 
-<h1>Incidencias abiertas con consulta rápida</h1>
+<h1>Incidencias abiertas con búsqueda y consulta rápida</h1>
+
+<form method="get" asp-action="Index" class="row g-2 mb-4">
+    <div class="col-md-4">
+        <input type="text"
+               name="termino"
+               value="@ViewBag.Termino"
+               class="form-control"
+               placeholder="Buscar por estación o descripción..." />
+    </div>
+
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-primary">Buscar</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Limpiar</a>
+    </div>
+</form>
 
 @if (TempData["Exito"] != null)
 {
@@ -24,6 +39,7 @@ else
                 <th>Descripción</th>
                 <th>Prioridad</th>
                 <th>Fecha</th>
+
                 @if (User.IsInRole("Supervisor"))
                 {
                     <th></th>
@@ -38,7 +54,11 @@ else
                     <td>@i.Estacion</td>
                     <td>@i.Descripcion</td>
                     <td>
-                        <span class="badge bg-@(i.Prioridad == IncidenciasBicicletas.Web.Models.PrioridadIncidencia.Alta ? "danger" : i.Prioridad == IncidenciasBicicletas.Web.Models.PrioridadIncidencia.Media ? "warning" : "secondary")">
+                        <span class="badge bg-@(i.Prioridad == IncidenciasBicicletas.Web.Models.PrioridadIncidencia.Alta
+                            ? "danger"
+                            : i.Prioridad == IncidenciasBicicletas.Web.Models.PrioridadIncidencia.Media
+                                ? "warning"
+                                : "secondary")">
                             @i.Prioridad
                         </span>
                     </td>

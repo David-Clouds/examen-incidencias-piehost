@@ -19,6 +19,7 @@ builder.Services.AddStackExchangeRedisCache(options =>
 });
 
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
+builder.Services.AddScoped<IBusquedaService, AlgoliaBusquedaService>();
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
