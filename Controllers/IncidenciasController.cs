@@ -14,13 +14,19 @@ namespace IncidenciasBicicletas.Web.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IBusquedaService _busquedaService;
         private readonly ICacheService _cacheService;
+        private readonly IPieSocketPublisher _publisher;
         private const string CacheKeyListado = "incidencias:listado:abiertas";
 
-        public IncidenciasController(ApplicationDbContext context, IBusquedaService busquedaService, ICacheService cacheService)
+        public IncidenciasController(
+            ApplicationDbContext context,
+            IBusquedaService busquedaService,
+            ICacheService cacheService,
+            IPieSocketPublisher publisher)
         {
             _context = context;
             _busquedaService = busquedaService;
             _cacheService = cacheService;
+            _publisher = publisher;
         }
 
         [HttpGet("")]
@@ -73,14 +79,29 @@ namespace IncidenciasBicicletas.Web.Controllers
             if (incidencia == null)
                 return NotFound();
 
+            // 1. Persistir el estado primero
             incidencia.Estado = EstadoIncidencia.Cerrada;
             await _context.SaveChangesAsync();
 
-            // Invalidar la caché ANTES de que el listado se vuelva a consultar
+            // 2. Invalidar la caché de Redis
             await _cacheService.RemoveAsync(CacheKeyListado);
+
+            // 3. Publicar el evento por PieSocket (después de persistir e invalidar)
+            await _publisher.PublicarIncidenciaActualizadaAsync(incidencia.Id, incidencia.Estado.ToString());
 
             TempData["Exito"] = $"Incidencia #{incidencia.Id} cerrada.";
             return RedirectToAction(nameof(Index));
+        }
+
+        // GET: /Operaciones/Incidencias/Estado/5 (para reconectar y consultar estado vigente)
+        [HttpGet("Estado/{id:int}")]
+        public async Task<IActionResult> Estado(int id)
+        {
+            var incidencia = await _context.Incidencias.FindAsync(id);
+            if (incidencia == null)
+                return NotFound();
+
+            return Json(new { id = incidencia.Id, estado = incidencia.Estado.ToString() });
         }
     }
 }

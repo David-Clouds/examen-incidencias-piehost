@@ -4,7 +4,8 @@
     ViewData["Title"] = "Incidencias";
 }
 
-<h1>Incidencias abiertas con búsqueda y consulta rápida</h1>
+<h1>Incidencias abiertas en tiempo real, con búsqueda y consulta rápida</h1>
+<p id="estado-conexion" class="text-muted small">Conectando al canal en tiempo real...</p>
 
 <form method="get" asp-action="Index" class="row g-2 mb-4">
     <div class="col-md-4">
@@ -32,50 +33,36 @@
 }
 else
 {
-    <table class="table table-striped">
+    <table class="table table-striped" id="tabla-incidencias">
         <thead>
             <tr>
                 <th>Estación</th>
                 <th>Descripción</th>
                 <th>Prioridad</th>
                 <th>Fecha</th>
-
                 @if (User.IsInRole("Supervisor"))
                 {
                     <th></th>
                 }
             </tr>
         </thead>
-
         <tbody>
             @foreach (var i in Model)
             {
-                <tr>
+                <tr id="fila-@i.Id">
                     <td>@i.Estacion</td>
                     <td>@i.Descripcion</td>
                     <td>
-                        <span class="badge bg-@(i.Prioridad == IncidenciasBicicletas.Web.Models.PrioridadIncidencia.Alta
-                            ? "danger"
-                            : i.Prioridad == IncidenciasBicicletas.Web.Models.PrioridadIncidencia.Media
-                                ? "warning"
-                                : "secondary")">
+                        <span class="badge bg-@(i.Prioridad == IncidenciasBicicletas.Web.Models.PrioridadIncidencia.Alta ? "danger" : i.Prioridad == IncidenciasBicicletas.Web.Models.PrioridadIncidencia.Media ? "warning" : "secondary")">
                             @i.Prioridad
                         </span>
                     </td>
-
                     <td>@i.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</td>
-
                     @if (User.IsInRole("Supervisor"))
                     {
                         <td>
-                            <form asp-action="Cerrar"
-                                  asp-route-id="@i.Id"
-                                  method="post"
-                                  class="d-inline">
-                                <button type="submit"
-                                        class="btn btn-sm btn-outline-danger">
-                                    Cerrar
-                                </button>
+                            <form asp-action="Cerrar" asp-route-id="@i.Id" method="post" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Cerrar</button>
                             </form>
                         </td>
                     }
@@ -83,4 +70,56 @@ else
             }
         </tbody>
     </table>
+}
+
+@section Scripts {
+    <script>
+        const clusterId = "free.blr2";
+        const apiKey = "DnkS3FD9kPC6Y8XDrCphVE4GrWIg7AcEDHRfB7fb";
+        const canal = "incidencias-canal";
+        let socket;
+
+        function conectar() {
+            socket = new WebSocket(`wss://${clusterId}.piesocket.com/v3/${canal}?api_key=${apiKey}&notify_self=1`);
+
+            socket.onopen = () => {
+                document.getElementById("estado-conexion").innerText = "🟢 Conectado en tiempo real";
+            };
+
+            socket.onmessage = (evento) => {
+                try {
+                    const data = JSON.parse(evento.data);
+                    if (data.tipo === "IncidenciaActualizada" && data.estado === "Cerrada") {
+                        const fila = document.getElementById(`fila-${data.id}`);
+                        if (fila) {
+                            fila.remove();
+                        }
+                    }
+                } catch (e) {
+                    // ignorar mensajes de sistema (system:connected, etc.)
+                }
+            };
+
+            socket.onclose = () => {
+                document.getElementById("estado-conexion").innerText = "🔴 Reconectando...";
+                setTimeout(reconectarYVerificar, 2000);
+            };
+        }
+
+        async function reconectarYVerificar() {
+            conectar();
+            document.querySelectorAll("tr[id^='fila-']").forEach(async (fila) => {
+                const id = fila.id.replace("fila-", "");
+                const respuesta = await fetch(`/Operaciones/Incidencias/Estado/${id}`);
+                if (respuesta.ok) {
+                    const data = await respuesta.json();
+                    if (data.estado === "Cerrada") {
+                        fila.remove();
+                    }
+                }
+            });
+        }
+
+        conectar();
+    </script>
 }

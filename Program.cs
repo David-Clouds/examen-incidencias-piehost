@@ -21,6 +21,8 @@ builder.Services.AddStackExchangeRedisCache(options =>
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IBusquedaService, AlgoliaBusquedaService>();
 
+// Registrar servicio de PieSocket
+builder.Services.AddScoped<IPieSocketPublisher, PieSocketPublisher>();
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
