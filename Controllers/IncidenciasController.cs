@@ -13,14 +13,16 @@ namespace IncidenciasBicicletas.Web.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IBusquedaService _busquedaService;
+        private readonly ICacheService _cacheService;
+        private const string CacheKeyListado = "incidencias:listado:abiertas";
 
-        public IncidenciasController(ApplicationDbContext context, IBusquedaService busquedaService)
+        public IncidenciasController(ApplicationDbContext context, IBusquedaService busquedaService, ICacheService cacheService)
         {
             _context = context;
             _busquedaService = busquedaService;
+            _cacheService = cacheService;
         }
 
-        // GET: /Operaciones/Incidencias
         [HttpGet("")]
         [HttpGet("Index")]
         public async Task<IActionResult> Index(string? termino)
@@ -29,6 +31,7 @@ namespace IncidenciasBicicletas.Web.Controllers
 
             if (!string.IsNullOrWhiteSpace(termino))
             {
+                // Búsqueda con Algolia: consulta DIRECTA, sin usar la caché (regla del enunciado)
                 var idsEncontrados = await _busquedaService.BuscarIdsAsync(termino);
 
                 abiertas = await _context.Incidencias
@@ -39,18 +42,27 @@ namespace IncidenciasBicicletas.Web.Controllers
             }
             else
             {
-                abiertas = await _context.Incidencias
-                    .Where(i => i.Estado == EstadoIncidencia.Abierta)
-                    .OrderByDescending(i => i.Prioridad)
-                    .ThenByDescending(i => i.FechaRegistro)
-                    .ToListAsync();
+                // Listado general: usa caché Redis (60s)
+                var cacheado = await _cacheService.GetAsync<List<Incidencia>>(CacheKeyListado);
+
+                if (cacheado == null)
+                {
+                    cacheado = await _context.Incidencias
+                        .Where(i => i.Estado == EstadoIncidencia.Abierta)
+                        .OrderByDescending(i => i.Prioridad)
+                        .ThenByDescending(i => i.FechaRegistro)
+                        .ToListAsync();
+
+                    await _cacheService.SetAsync(CacheKeyListado, cacheado, TimeSpan.FromSeconds(60));
+                }
+
+                abiertas = cacheado;
             }
 
             ViewBag.Termino = termino;
             return View(abiertas);
         }
 
-        // POST: /Operaciones/Incidencias/Cerrar/5
         [HttpPost("Cerrar/{id:int}")]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Supervisor")]
@@ -63,6 +75,9 @@ namespace IncidenciasBicicletas.Web.Controllers
 
             incidencia.Estado = EstadoIncidencia.Cerrada;
             await _context.SaveChangesAsync();
+
+            // Invalidar la caché ANTES de que el listado se vuelva a consultar
+            await _cacheService.RemoveAsync(CacheKeyListado);
 
             TempData["Exito"] = $"Incidencia #{incidencia.Id} cerrada.";
             return RedirectToAction(nameof(Index));

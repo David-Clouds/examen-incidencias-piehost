@@ -11,7 +11,14 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(connectionString));
 
+// Configuración de Redis
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration["Redis:ConnectionString"];
+    options.InstanceName = "incidencias:";
+});
 
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IBusquedaService, AlgoliaBusquedaService>();
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
